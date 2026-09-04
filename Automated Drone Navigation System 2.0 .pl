@@ -15,3 +15,8 @@ path('Galle', 'Matara', 35).
 path('Matara', 'Hambantota', 75).
 path('Badulla', 'Hambantota', 110).
 path('Kandy', 'Badulla', 105).
+
+%     Flight path can be traveled in both directions
+
+flight_route(X, Y, D) :- path(X, Y, D).
+flight_route(X, Y, D) :- path(Y, X, D).
