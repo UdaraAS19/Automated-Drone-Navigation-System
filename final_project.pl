@@ -366,4 +366,4 @@ compare_algorithms_menu :-
 
 % Run with `swipl -s final_project.pl`; consulting the file leaves the menu
 % available through main_menu/0 without starting an interactive session.
-:- initialization(main_menu, main).
+:- initialization(go, main).
