@@ -206,7 +206,7 @@ available_location(Loc, Weight) :-
 % Interactive delivery menu.
 % ==============================================================================
 
-main_menu :-
+go :-
     init_drone,
     menu_loop.
 
