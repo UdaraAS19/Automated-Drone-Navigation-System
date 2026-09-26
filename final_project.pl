@@ -1,10 +1,7 @@
 % ==============================================================================
-% 1. KNOWLEDGE BASE (KB.pl)
-% Represents topological maps, waypoints, and edge costs (battery %).
+% Flight network: edge/3 stores raw energy cost; road_km/3 stores distance.
 % ==============================================================================
 
-% edge(Node1, Node2, EnergyCost).  Costs are raw energy units; they are converted
-% to battery-% by battery_percent/2 below (scaled to the drone's battery capacity).
 edge('Ratnapura', 'Kalutara', 55).
 edge('Ratnapura', 'Balangoda', 42).
 edge('Ratnapura', 'Avissawella', 45).
@@ -18,8 +15,7 @@ edge('Matara', 'Hambantota', 140).   % raised so Hambantota costs 60% from Ratna
 edge('Badulla', 'Hambantota', 190).   % raised so Hambantota costs 60% from Ratnapura
 edge('Kandy', 'Badulla', 105).
 
-% Heuristic h(n) for A*: Direct line-of-sight distance to target.
-% h(CurrentNode, TargetNode, EstimatedCost).
+% Estimated remaining energy cost for A*.
 h('Ratnapura', 'Hambantota', 100).
 h('Balangoda', 'Hambantota', 90).
 h('Badulla', 'Hambantota', 100).
@@ -31,9 +27,7 @@ h('Avissawella', 'Colombo', 30).
 h(X, X, 0). % Distance to itself is 0
 h(_, _, 20). % Fallback heuristic for unlisted direct pairs
 
-% Road distances in kilometres between connected towns (approximate driving distances).
-% road_km(Node1, Node2, Km).  Used for the "Distance" shown to the user;
-% battery cost above is a separate energy figure.
+% Approximate road distance in kilometres, separate from energy cost.
 road_km('Ratnapura', 'Kalutara', 80).
 road_km('Ratnapura', 'Balangoda', 47).
 road_km('Ratnapura', 'Avissawella', 51).
@@ -47,32 +41,28 @@ road_km('Matara', 'Hambantota', 85).
 road_km('Badulla', 'Hambantota', 165).
 road_km('Kandy', 'Badulla', 130).
 
-% path_distance_km(Path, Km): total road distance along a list of waypoints.
+% path_distance_km(+Path, -Kilometres)
 path_distance_km([_], 0).
 path_distance_km([A, B | Rest], Km) :-
     (   road_km(A, B, Leg) ; road_km(B, A, Leg) ), !,
     path_distance_km([B | Rest], RestKm),
     Km is Leg + RestKm.
 
-% Battery scaling: a full charge (max_battery/1, i.e. 100%) can cover this many raw
-% cost units. Raw route costs are converted into a % of battery capacity, so
-% e.g. a 220-unit route uses 220 * 100 / 500 = 44% of the battery.
+% Raw energy cost covered by a full battery.
 full_charge_range(500).
 
-% battery_percent(RawCost, BatteryPercent): raw cost -> % of battery (1 decimal).
+% battery_percent(+RawCost, -Percent)
 battery_percent(Raw, Pct) :-
     max_battery(Max),
     full_charge_range(Range),
     Pct is round(Raw * Max * 10 / Range) / 10.
 
-% Dynamic Constraints: blocked(Node1, Node2) represents No-fly zones.
+% blocked/2 stores no-fly zones.
 :- dynamic(blocked/2).
 blocked('Avissawella', 'Kandy'). % Bad weather pocket
 
 % ==============================================================================
-% 1b. RELIEF CAMPS / DELIVERY POINTS
-% These are the locations where supplies (goods) are received by default.
-% delivery_point(Location, PackageWeightKg).
+% Relief camps and package weights in kilograms.
 % ==============================================================================
 
 delivery_point('Colombo', 25).
@@ -80,8 +70,7 @@ delivery_point('Hambantota', 40).
 delivery_point('Badulla', 30).
 
 % ==============================================================================
-% 2. CONSTRAINT & SAFETY ENGINE
-% Validates moves based on bidirectional edges and blocked airspace.
+% A move is valid in either direction unless the airspace is blocked.
 % ==============================================================================
 
 valid_move(Current, Next, Cost) :-
@@ -90,11 +79,9 @@ valid_move(Current, Next, Cost) :-
     \+ blocked(Next, Current).
 
 % ==============================================================================
-% 3. CORE SEARCH ALGORITHMS (BFS, DFS, A*)
-% Finds a route between two locations.
+% Search algorithms return a route and its raw energy cost.
 % ==============================================================================
 
-% --- DFS (Path) ---
 dfs(Start, Target, Path, Cost) :-
     dfs_helper(Start, Target, [Start], RevPath, Cost),
     reverse(RevPath, Path).
@@ -106,7 +93,7 @@ dfs_helper(Current, Target, Visited, FinalPath, TotalCost) :-
     dfs_helper(Next, Target, [Next|Visited], FinalPath, RestCost),
     TotalCost is StepCost + RestCost.
 
-% --- BFS (Unweighted Path/Shortest Hops) ---
+% Breadth-first search minimizes the number of legs.
 bfs(Start, Target, Path, Cost) :-
     bfs_queue([ [[Start], 0] ], Target, RevPath, Cost),
     reverse(RevPath, Path).
@@ -121,7 +108,7 @@ bfs_queue([ [[Current|Rest], Cost] | QueueTail ], Target, FinalPath, FinalCost) 
     append(QueueTail, Children, NewQueue),
     bfs_queue(NewQueue, Target, FinalPath, FinalCost).
 
-% --- A* (Optimal Cost) ---
+% A* search prioritizes routes by estimated total energy cost.
 astar(Start, Target, Path, Cost) :-
     h(Start, Target, H),
     astar_queue([H-[[Start], 0]], Target, RevPath, Cost),
@@ -150,7 +137,7 @@ run_algo(bfs, S, T, P, C) :- bfs(S, T, P, C).
 run_algo(astar, S, T, P, C) :- astar(S, T, P, C).
 
 % ==============================================================================
-% 4. MULTI-TARGET TOUR PLANNER MODULE
+% Visit each target in order, then return to the start.
 % ==============================================================================
 
 plan_tour(Start, Targets, Algo, FullPath, TotalCost) :-
@@ -169,7 +156,7 @@ combine_paths(P1, [], P1) :- !.
 combine_paths(P1, [_|T2], Combined) :- append(P1, T2, Combined).
 
 % ==============================================================================
-% 5. METRICS & COMPARISON ENGINE
+% Compare algorithms using route distance and battery cost.
 % ==============================================================================
 
 compare_algorithms(Start, Target) :-
@@ -189,18 +176,16 @@ compare_run(Algo, Start, Target) :-
     ).
 
 % ==============================================================================
-% 6. DRONE STATE (Live position + battery, tracked across the whole session)
+% Drone state is maintained for the current session.
 % ==============================================================================
 
-% Maximum (and starting) battery capacity: the drone always operates on a 0-100% scale.
 max_battery(100).
 
 :- dynamic(current_location/1).
 :- dynamic(battery_level/1).
 :- dynamic(delivered/1).   % delivered(Location): relief camps already served this session
 
-% Return the drone to base ('Ratnapura') and refill the battery to 100%.
-% Delivered locations are kept, so served camps stay hidden.
+% Reset the position and battery while keeping delivery history.
 reset_drone :-
     max_battery(Max),
     retractall(current_location(_)),
@@ -208,18 +193,17 @@ reset_drone :-
     assertz(current_location('Ratnapura')),
     assertz(battery_level(Max)).
 
-% Full start-up state: reset the drone AND forget all previous deliveries.
+% Start a new session and clear delivery history.
 init_drone :-
     retractall(delivered(_)),
     reset_drone.
 
-% A relief camp is still "available" until the drone has delivered to it.
 available_location(Loc, Weight) :-
     delivery_point(Loc, Weight),
     \+ delivered(Loc).
 
 % ==============================================================================
-% 7. MAIN MENU & DELIVERY MANAGEMENT SYSTEM
+% Interactive delivery menu.
 % ==============================================================================
 
 main_menu :-
@@ -256,7 +240,7 @@ handle_choice(8) :- !, nl, write('Exiting Drone Relief Delivery System. Safe tra
 handle_choice(end_of_file) :- !, nl, write('Exiting Drone Relief Delivery System.'), nl.
 handle_choice(_) :- nl, write('Invalid option, please try again.'), nl, menu_loop.
 
-% --- Block/Unblock Logic ---
+% Block or unblock a known road.
 block_road :-
     nl, write('Enter Road to Block (example: \'Avissawella\'. \'Kandy\'.): '),
     read(A), read(B),
@@ -289,8 +273,7 @@ show_blocked :-
 
 list_blocked :- forall(blocked(A,B),(write(A-B), nl)).
 
-% --- Shared display: location, distance, route, battery cost, package weight ---
-% (Cost is the raw route cost; it is shown as a % of battery capacity.)
+% Display route distance, battery cost, and package weight.
 show_delivery_details(Loc, Path, Cost, Weight) :-
     path_distance_km(Path, Km),
     battery_percent(Cost, Pct),
@@ -300,7 +283,6 @@ show_delivery_details(Loc, Path, Cost, Weight) :-
     format('  Battery Cost: ~w%~n', [Pct]),
     format('  Package Weight: ~wkg~n', [Weight]).
 
-% --- Option 1: show every pending relief camp's distance, route, battery cost, weight ---
 view_delivery_details :-
     current_location(Current),
     nl, write('--- Delivery Locations (goods to be delivered) ---'), nl,
@@ -316,7 +298,6 @@ view_delivery_details :-
         )
     ).
 
-% --- Option 2: pick a location, review the details, confirm, then deliver ---
 deliver_to_location :-
     findall(L, available_location(L, _), Locations),
     (   Locations == []
@@ -336,7 +317,6 @@ deliver_to_location :-
         )
     ).
 
-% Show the delivery details, check the battery, and only deliver once the user confirms.
 review_and_confirm(Current, Target, Path, Cost, Weight) :-
     battery_percent(Cost, Pct),
     battery_level(Bat),
@@ -355,7 +335,6 @@ review_and_confirm(Current, Target, Path, Cost, Weight) :-
         format('Insufficient battery for this trip. Required: ~w%, Available: ~w%~n', [Pct, Bat])
     ).
 
-% Succeeds on yes/y, fails on no/n (or end of input); re-asks on anything else.
 ask_confirmation :-
     write('Confirm this delivery? (yes. / no.): '),
     read(Answer),
@@ -367,7 +346,6 @@ ask_confirmation :-
         ask_confirmation
     ).
 
-% Carry out a confirmed delivery: use battery, move the drone, mark the camp as served.
 execute_delivery(Current, Target, Path, Pct, Weight) :-
     battery_level(Bat),
     NewBat is round((Bat - Pct) * 10) / 10,
@@ -381,7 +359,6 @@ execute_delivery(Current, Target, Path, Pct, Weight) :-
     format('Battery Used: ~w%   |   Battery Remaining: ~w%~n', [Pct, NewBat]),
     format('Delivered ~wkg of supplies to ~w.~n', [Weight, Target]).
 
-% --- Option 3: free-form algorithm comparison between any two nodes ---
 compare_algorithms_menu :-
     nl, write('Enter start location (end with a period): '), read(Start),
     write('Enter target location (end with a period): '), read(Target),
