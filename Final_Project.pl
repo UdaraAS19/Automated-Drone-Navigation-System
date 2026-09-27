@@ -1,6 +1,4 @@
-% ==============================================================================
 % Flight network: edge/3 stores raw energy cost; road_km/3 stores distance.
-% ==============================================================================
 
 edge('Ratnapura', 'Kalutara', 55).
 edge('Ratnapura', 'Balangoda', 42).
@@ -60,26 +58,20 @@ battery_percent(Raw, Pct) :-
 :- dynamic(blocked/2).
 blocked('Avissawella', 'Kandy'). % Bad weather pocket
 
-% ==============================================================================
 % Relief camps and package weights in kilograms.
-% ==============================================================================
 
 delivery_point('Colombo', 25).
 delivery_point('Hambantota', 40).
 delivery_point('Badulla', 30).
 
-% ==============================================================================
 % A move is valid in either direction unless the airspace is blocked.
-% ==============================================================================
 
 valid_move(Current, Next, Cost) :-
     (edge(Current, Next, Cost) ; edge(Next, Current, Cost)),
     \+ blocked(Current, Next),
     \+ blocked(Next, Current).
 
-% ==============================================================================
 % Search algorithms return a route and its raw energy cost.
-% ==============================================================================
 
 dfs(Start, Target, Path, Cost) :-
     dfs_helper(Start, Target, [Start], RevPath, Cost),
@@ -131,9 +123,7 @@ run_algo(dfs, S, T, P, C) :- dfs(S, T, P, C).
 run_algo(bfs, S, T, P, C) :- bfs(S, T, P, C).
 run_algo(astar, S, T, P, C) :- astar(S, T, P, C).
 
-% ==============================================================================
 % Visit each target in order, then return to the start.
-% ==============================================================================
 
 plan_tour(Start, Targets, Algo, FullPath, TotalCost) :-
     append(Targets, [Start], FullRoute),
@@ -150,9 +140,7 @@ plan_legs(Current, [NextTarget|Rest], Algo, Path, TotalCost) :-
 combine_paths(P1, [], P1) :- !.
 combine_paths(P1, [_|T2], Combined) :- append(P1, T2, Combined).
 
-% ==============================================================================
 % Drone state is maintained for the current session.
-% ==============================================================================
 
 max_battery(100).
 
@@ -177,9 +165,7 @@ available_location(Loc, Weight) :-
     delivery_point(Loc, Weight),
     \+ delivered(Loc).
 
-% ==============================================================================
 % Interactive delivery menu.
-% ==============================================================================
 
 go :-
     init_drone,
