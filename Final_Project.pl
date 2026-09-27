@@ -1,4 +1,4 @@
-% Flight network: edge/3 stores raw energy cost; road_km/3 stores distance.
+% Flight network and energy costs.
 
 edge('Ratnapura', 'Kalutara', 55).
 edge('Ratnapura', 'Balangoda', 42).
@@ -9,11 +9,11 @@ edge('Avissawella', 'Colombo', 36).
 edge('Avissawella', 'Kandy', 65).
 edge('Balangoda', 'Badulla', 68).
 edge('Galle', 'Matara', 35).
-edge('Matara', 'Hambantota', 140).   % raised so Hambantota costs 60% from Ratnapura
-edge('Badulla', 'Hambantota', 190).   % raised so Hambantota costs 60% from Ratnapura
+edge('Matara', 'Hambantota', 140).   % Adjusted for the target cost.
+edge('Badulla', 'Hambantota', 190).   % Adjusted for the target cost.
 edge('Kandy', 'Badulla', 105).
 
-% Estimated remaining energy cost for A*.
+% A* heuristic values.
 h('Ratnapura', 'Hambantota', 100).
 h('Balangoda', 'Hambantota', 90).
 h('Badulla', 'Hambantota', 100).
@@ -22,10 +22,10 @@ h('Matara', 'Hambantota', 70).
 h('Ratnapura', 'Colombo', 50).
 h('Kalutara', 'Colombo', 40).
 h('Avissawella', 'Colombo', 30).
-h(X, X, 0). % Distance to itself is 0
-h(_, _, 20). % Fallback heuristic for unlisted direct pairs
+h(X, X, 0). % Same location.
+h(_, _, 20). % Default estimate.
 
-% Approximate road distance in kilometres, separate from energy cost.
+% Approximate road distances in kilometres.
 road_km('Ratnapura', 'Kalutara', 80).
 road_km('Ratnapura', 'Balangoda', 47).
 road_km('Ratnapura', 'Avissawella', 51).
@@ -39,39 +39,38 @@ road_km('Matara', 'Hambantota', 85).
 road_km('Badulla', 'Hambantota', 165).
 road_km('Kandy', 'Badulla', 130).
 
-% path_distance_km(+Path, -Kilometres)
+% Calculate path distance.
 path_distance_km([_], 0).
 path_distance_km([A, B | Rest], Km) :-
     (   road_km(A, B, Leg) ; road_km(B, A, Leg) ), !,
     path_distance_km([B | Rest], RestKm),
     Km is Leg + RestKm.
 
-% Raw energy cost covered by a full battery.
+% Energy covered by a full battery.
 full_charge_range(500).
 
-% battery_percent(+RawCost, -Percent)
-% SImplified battery calculation
+% Convert energy cost to a percentage.
 battery_percent(Raw, Pct) :-
     Pct is (Raw * 100) // 500.
 
-% blocked/2 stores no-fly zones.
+% No-fly zones.
 :- dynamic(blocked/2).
-blocked('Avissawella', 'Kandy'). % Bad weather pocket
+blocked('Avissawella', 'Kandy'). % Bad weather.
 
-% Relief camps and package weights in kilograms.
+% Delivery points and package weights.
 
 delivery_point('Colombo', 25).
 delivery_point('Hambantota', 40).
 delivery_point('Badulla', 30).
 
-% A move is valid in either direction unless the airspace is blocked.
+% Valid moves work in either direction unless blocked.
 
 valid_move(Current, Next, Cost) :-
     (edge(Current, Next, Cost) ; edge(Next, Current, Cost)),
     \+ blocked(Current, Next),
     \+ blocked(Next, Current).
 
-% Search algorithms return a route and its raw energy cost.
+% Search algorithms return a route and energy cost.
 
 dfs(Start, Target, Path, Cost) :-
     dfs_helper(Start, Target, [Start], RevPath, Cost),
@@ -84,7 +83,7 @@ dfs_helper(Current, Target, Visited, FinalPath, TotalCost) :-
     dfs_helper(Next, Target, [Next|Visited], FinalPath, RestCost),
     TotalCost is StepCost + RestCost.
 
-% Breadth-first search minimizes the number of legs.
+% BFS minimizes the number of legs.
 bfs(Start, Target, Path, Cost) :-
     bfs_queue([ [[Start], 0] ], Target, RevPath, Cost),
     reverse(RevPath, Path).
@@ -99,7 +98,7 @@ bfs_queue([ [[Current|Rest], Cost] | QueueTail ], Target, FinalPath, FinalCost) 
     append(QueueTail, Children, NewQueue),
     bfs_queue(NewQueue, Target, FinalPath, FinalCost).
 
-% A* search prioritizes routes by estimated total energy cost.
+% A* uses estimated total energy cost.
 astar(Start, Target, Path, Cost) :-
     h(Start, Target, H),
     astar_search([[H,0,[Start]]], Target, RevPath, Cost),
@@ -118,7 +117,7 @@ astar_search([[F,G,[Current|Rest]]|Others], Target, Path, Cost):-
 	sort(All,SortedQueue),
 	astar_search(SortedQueue,Target,Path,Cost).
 
-% Helper to dynamically select the algorithm
+% Select the search algorithm.
 run_algo(dfs, S, T, P, C) :- dfs(S, T, P, C).
 run_algo(bfs, S, T, P, C) :- bfs(S, T, P, C).
 run_algo(astar, S, T, P, C) :- astar(S, T, P, C).
@@ -136,19 +135,19 @@ plan_legs(Current, [NextTarget|Rest], Algo, Path, TotalCost) :-
     TotalCost is LegCost + RestCost,
     combine_paths(LegPath, RestPath, Path).
 
-% Combines paths by dropping the duplicated waypoint connecting two legs
+% Combine paths without duplicating the waypoint.
 combine_paths(P1, [], P1) :- !.
 combine_paths(P1, [_|T2], Combined) :- append(P1, T2, Combined).
 
-% Drone state is maintained for the current session.
+% Current drone state.
 
 max_battery(100).
 
 :- dynamic(current_location/1).
 :- dynamic(battery_level/1).
-:- dynamic(delivered/1).   % delivered(Location): relief camps already served this session
+:- dynamic(delivered/1).   % Served locations.
 
-% Reset the position and battery while keeping delivery history.
+% Reset position and battery.
 reset_drone :-
     max_battery(Max),
     retractall(current_location(_)),
@@ -156,7 +155,7 @@ reset_drone :-
     assertz(current_location('Ratnapura')),
     assertz(battery_level(Max)).
 
-% Start a new session and clear delivery history.
+% Start a new session.
 init_drone :-
     retractall(delivered(_)),
     reset_drone.
@@ -165,7 +164,7 @@ available_location(Loc, Weight) :-
     delivery_point(Loc, Weight),
     \+ delivered(Loc).
 
-% Interactive delivery menu.
+% Delivery menu.
 
 go :-
     init_drone,
@@ -201,7 +200,7 @@ handle_choice(8) :- !, nl, write('Exiting Drone Relief Delivery System. Safe tra
 handle_choice(end_of_file) :- !, nl, write('Exiting Drone Relief Delivery System.'), nl.
 handle_choice(_) :- nl, write('Invalid option, please try again.'), nl, menu_loop.
 
-% --- Multi-Target Tour Menu Logic ---
+% Multi-target tour menu.
 plan_tour_menu :-
     current_location(Start),
     nl, write('--- Multi-Target Tour Planning ---'), nl,
@@ -209,21 +208,21 @@ plan_tour_menu :-
     read_targets(Targets),
     (   Targets == [] -> nl, write('No targets specified.'), nl
     ;   nl, write('--- Comparing Algorithms for the Tour ---'), nl,
-        % Compare DFS
+        % Compare DFS.
         (   plan_tour(Start, Targets, dfs, FullPathDfs, TotalCostDfs) ->
             battery_percent(TotalCostDfs, PctDfs),
             path_distance_km(FullPathDfs, KmDfs),
             format('Algorithm: dfs   | Distance: ~w km | Battery Cost: ~w% | Full Route: ~w~n', [KmDfs, PctDfs, FullPathDfs])
         ;   write('Algorithm: dfs   | No valid tour found.'), nl
         ),
-        % Compare BFS
+        % Compare BFS.
         (   plan_tour(Start, Targets, bfs, FullPathBfs, TotalCostBfs) ->
             battery_percent(TotalCostBfs, PctBfs),
             path_distance_km(FullPathBfs, KmBfs),
             format('Algorithm: bfs   | Distance: ~w km | Battery Cost: ~w% | Full Route: ~w~n', [KmBfs, PctBfs, FullPathBfs])
         ;   write('Algorithm: bfs   | No valid tour found.'), nl
         ),
-        % Compare A*
+        % Compare A*.
         (   plan_tour(Start, Targets, astar, FullPathAstar, TotalCostAstar) ->
             battery_percent(TotalCostAstar, PctAstar),
             path_distance_km(FullPathAstar, KmAstar),
@@ -232,7 +231,7 @@ plan_tour_menu :-
         )
     ).
 
-% Helper to successfully read a comma-separated tuple ending with a period.
+% Read comma-separated targets.
 read_targets(Targets) :-
     read(Term),
     tuple_to_list(Term, Targets).
@@ -243,7 +242,7 @@ tuple_to_list(A, [A]) :- A \== end_of_file, A \== ''.
 tuple_to_list(_, []).
 
 
-% Block or unblock a known road.
+% Block or unblock a road.
 block_road :-
     nl, write('Enter Road to Block (example: \'Avissawella\'. \'Kandy\'.): '),
     read(A), read(B),
@@ -276,7 +275,7 @@ show_blocked :-
 
 list_blocked :- forall(blocked(A,B),(write(A-B), nl)).
 
-% Display route distance, battery cost, and package weight.
+% Display delivery details.
 show_delivery_details(Loc, Path, Cost, Weight) :-
     path_distance_km(Path, Km),
     battery_percent(Cost, Pct),
@@ -356,7 +355,7 @@ execute_delivery(Current, Target, Path, Pct, Weight) :-
     assertz(battery_level(NewBat)),
     retract(current_location(Current)),
     assertz(current_location(Target)),
-    assertz(delivered(Target)),   % remove this camp from future listings
+    assertz(delivered(Target)),   % Mark the location as served.
     nl, write('*** DELIVERY APPROVED ***'), nl,
     format('Route Taken: ~w~n', [Path]),
     format('Battery Used: ~w%   |   Battery Remaining: ~w%~n', [Pct, NewBat]),
