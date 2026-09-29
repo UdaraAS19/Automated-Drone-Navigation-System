@@ -83,7 +83,7 @@ road('Ratnapura',  'Badulla',      38, 79).
 road('Ratnapura',  'Galle',        36, 74).
 road('Ratnapura',  'Hambantota',  43, 91).
 road('Galle',      'Hambantota',  50, 101).
-road('Kandy',      'Plonnaruwa',  41, 83).
+road('Kandy',      'Polonnaruwa',  41, 83).
 road('Colombo',    'Galle', 53, 106).
 road('Hambantota', 'Galle',  50, 101).
 road('Badulla', 'Hambantota',  48, 96).
