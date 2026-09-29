@@ -1,4 +1,5 @@
 %------------ AUTOMATED DRONE RELIEF DELIVERY SYSTEM ------------
+
 % COU4303 Mini Project - route finding with DFS, BFS and A*.
 %
 % HOW TO RUN
@@ -17,16 +18,18 @@
 %   7. Menu and options   1-9
 %   8. Comparison         option 8
 
+
+
+
 %------------ Input helpers ------------
-% safe_read/2 reads one term and never crashes on a syntax error.
-% On bad syntax it returns '$invalid' instead of raising an exception.
+
+
 safe_read(Term, Vars) :-
     catch(read_term(Term, [variable_names(Vars)]),
           error(syntax_error(_), _),
           ( Term = '$invalid', Vars = [] )).
 
-% Prolog treats an unquoted capitalised word (e.g. Hambantota.) as a
-% variable. variable_names/1 lets us recover the name the user typed.
+
 resolve_var(Term, Vars, Name) :-
     var(Term),
     !,
@@ -39,13 +42,13 @@ resolve_var(Term, _, Term).
 find_var_name(V, [N=V2|_], N) :- V == V2, !.
 find_var_name(V, [_|T], N) :- find_var_name(V, T, N).
 
-% Read one location name (quotes and capital letters are optional).
+
 read_atom_input(Atom) :-
     safe_read(Term, Vars),
     resolve_var(Term, Vars, Name),
     canonical_location(Name, Atom).
 
-% Match typed text with a real location name, ignoring upper/lower case.
+
 canonical_location(In, Out) :-
     atom(In),
     downcase_atom(In, Low),
@@ -56,24 +59,23 @@ canonical_location(X, X).
 
 known_location(L) :- ( edge(L, _, _) ; edge(_, L, _) ).
 
-% Read the main-menu choice. An unbound variable (e.g. typing X.) must
-% never match a menu clause, so it is turned into 'invalid'.
 read_choice(Choice) :-
     safe_read(Term, Vars),
     resolve_var(Term, Vars, Choice0),
     (   var(Choice0) -> Choice = invalid ; Choice = Choice0 ).
 
-% Read a yes/no style answer in lower case.
+
 read_answer(Answer) :-
     safe_read(Term, Vars),
     resolve_var(Term, Vars, Name),
     (   atom(Name) -> downcase_atom(Name, Answer) ; Answer = invalid ).
 
-%------------ Map data: ONE table for both energy and distance ------------
-% road(CityA, CityB, EnergyCost, Km). Roads work in both directions.
-% Energy: 500 units = a full battery (see full_charge_range/1).
-% The energy values are estimates for terrain/wind, so they are not
-% proportional to Km. If any Energy value is changed, run ?- check_heuristics.
+
+
+
+%------------ Map data ------------
+
+
 road('Colombo',    'Kandy',       45, 95).
 road('Kandy',      'Badulla',      27, 58).
 road('Colombo',    'Badulla',    68, 134).
@@ -85,16 +87,18 @@ road('Kandy',      'Polonnaruwa',  41, 83).
 road('Colombo',    'Galle', 53, 106).
 road('Hambantota', 'Galle',  50, 101).
 road('Badulla', 'Hambantota',  48, 96).
-road('Badulla', 'Polonnaruwa',  53, 106). %new added
-road('Kandy',  'Ratnapura', 37, 72). %new added
-
-
+road('Badulla', 'Polonnaruwa',  53, 106). 
+road('Kandy',  'Ratnapura', 37, 72). 
 
 edge(A, B, Energy) :- road(A, B, Energy, _).
 
-%------------ A* heuristic values (estimated energy to the goal) ------------
-% h(Node, Goal, Estimate). Every value must be <= the real cheapest cost,
-% otherwise A* can return a non-optimal route.
+
+
+
+%------------ A* heuristic values  ------------
+
+% h(Node, Goal, Estimate).
+
 h('Ratnapura', 'Hambantota', 43). 
 h('Galle',     'Hambantota', 49).
 h('Badulla',   'Hambantota', 47).
@@ -107,67 +111,69 @@ h('Galle','Colombo',         52).
 h('Kandy',     'Badulla',   26).
 h('Colombo',   'Badulla',    67).
 h('Ratnapura', 'Badulla',    37).
-h('Polonnaruwa','Badulla', 52). %new added
+h('Polonnaruwa','Badulla', 52). 
 
 h('Colombo',   'Ratnapura',  31).
 h('Badulla',   'Ratnapura', 37).
 h('Galle',     'Ratnapura',  35).
 h('Hambantota','Ratnapura', 42).
-h('Kandy','Ratnapura', 36). %new added
+h('Kandy','Ratnapura', 36).
 
-h('Ratnapura','Kandy', 36). %new added
+h('Ratnapura','Kandy', 36).
 h('Colombo','Kandy', 44).
 h('Badulla','Kandy', 26).
 h('Polonnaruwa','Kandy', 40).
 
 h('Kandy','Polonnaruwa', 40).
-h('Badulla','Polonnaruwa', 52). %new added
+h('Badulla','Polonnaruwa', 52). 
 
 h('Colombo','Galle', 52).
 h('Hambantota','Galle', 49).
 h('Ratnapura','Galle', 35).
 
 
-
-
-
-
-% Deterministic wrapper: exactly one estimate per node. Same node -> 0,
-% unknown pair -> 0 (never overestimates, so A* stays optimal).
 heuristic(A, B, H) :-
     (   A == B -> H = 0
     ;   h(A, B, H0) -> H = H0
     ;   H = 0
     ).
 
+
+
+
 %------------ Road distances in kilometres ------------
+
+
 road_km(A, B, Km) :- road(A, B, _, Km).
 
-% Total distance of a path (roads work in either direction).
 path_distance_km([_], 0).
 path_distance_km([A, B | Rest], Km) :-
     (   road_km(A, B, Leg) ; road_km(B, A, Leg) ), !,
     path_distance_km([B | Rest], RestKm),
     Km is Leg + RestKm.
 
-%------------ Battery and payload ------------
-% Energy covered by a full battery.
-full_charge_range(500).
 
-% Maximum total package weight (kg) the drone can carry in one tour.
+
+%------------ Battery and payload ------------
+
+full_charge_range(500).
 max_payload(100).
 
-% Convert energy cost to a percentage of a full battery.
-% ceiling/1 rounds UP so the battery use is never under-estimated.
 battery_percent(Raw, Pct) :-
     full_charge_range(Range),
     Pct is ceiling(Raw * 100 / Range).
 
-%------------ No-fly zones ------------
+
+
+%--------- No-fly zones ------------
+
 :- dynamic(blocked/2).
 blocked('Ratnapura', 'Kandy'). % Bad weather.
 
-%------------ Delivery points and package weights ------------
+
+
+
+%------- Delivery points and package weights -------
 
 delivery_point('Hambantota', 15).
 delivery_point('Badulla', 15).
@@ -176,17 +182,16 @@ delivery_point('Polonnaruwa', 15).
 delivery_point('Galle', 15).
 delivery_point('Ratnapura', 20).
 
-
-
-
-% Valid moves work in either direction unless blocked.
-
 valid_move(Current, Next, Cost) :-
     (edge(Current, Next, Cost) ; edge(Next, Current, Cost)),
     \+ blocked(Current, Next),
     \+ blocked(Next, Current).
 
-%------------ Search algorithms (return a route and energy cost) ------------
+
+
+
+%------------ Search algorithms  ------------
+
 
 dfs(Start, Target, Path, Cost) :-
     dfs_helper(Start, Target, [Start], RevPath, Cost),
@@ -199,7 +204,7 @@ dfs_helper(Current, Target, Visited, FinalPath, TotalCost) :-
     dfs_helper(Next, Target, [Next|Visited], FinalPath, RestCost),
     TotalCost is StepCost + RestCost.
 
-% BFS minimizes the number of legs.
+
 bfs(Start, Target, Path, Cost) :-
     bfs_queue([ [[Start], 0] ], Target, RevPath, Cost),
     reverse(RevPath, Path).
@@ -214,7 +219,7 @@ bfs_queue([ [[Current|Rest], Cost] | QueueTail ], Target, FinalPath, FinalCost) 
     append(QueueTail, Children, NewQueue),
     bfs_queue(NewQueue, Target, FinalPath, FinalCost).
 
-% A* uses estimated total energy cost.
+
 astar(Start, Target, Path, Cost) :-
     heuristic(Start, Target, H),
     astar_search([[H,0,[Start]]], Target, RevPath, Cost),
@@ -233,12 +238,16 @@ astar_search([[_,G,[Current|Rest]]|Others], Target, Path, Cost) :-
     sort(All, SortedQueue),
     astar_search(SortedQueue, Target, Path, Cost).
 
-% Select the search algorithm (first solution only).
 run_algo(dfs, S, T, P, C) :- once(dfs(S, T, P, C)).
 run_algo(bfs, S, T, P, C) :- once(bfs(S, T, P, C)).
 run_algo(astar, S, T, P, C) :- once(astar(S, T, P, C)).
 
-%------------ Multi-target tour: visit each target in order, return to start ------------
+
+
+
+
+%------------ Multi-target tour ------------
+
 
 plan_tour(Start, Targets, Algo, FullPath, TotalCost) :-
     append(Targets, [Start], FullRoute),
@@ -251,13 +260,10 @@ plan_legs(Current, [NextTarget|Rest], Algo, Path, TotalCost) :-
     TotalCost is LegCost + RestCost,
     combine_paths(LegPath, RestPath, Path).
 
-% Combine paths without duplicating the waypoint.
 combine_paths(P1, [], P1) :- !.
 combine_paths(P1, [_|T2], Combined) :- append(P1, T2, Combined).
 
-% Try every visiting order (A* legs) and keep the cheapest one.
-% For more than 6 targets the number of orders is too large, so the
-% entered order is used unchanged.
+
 best_tour_order(Start, Targets, BestOrder, BestPath, BestCost) :-
     length(Targets, N),
     (   N =< 6
@@ -272,6 +278,9 @@ best_tour_order(Start, Targets, BestOrder, BestPath, BestCost) :-
         BestOrder = Targets
     ).
 
+
+
+
 %------------ Current drone state ------------
 
 max_battery(100).
@@ -280,7 +289,6 @@ max_battery(100).
 :- dynamic(battery_level/1).
 :- dynamic(delivered/1).   % Served locations.
 
-% Reset position and battery.
 reset_drone :-
     max_battery(Max),
     retractall(current_location(_)),
@@ -288,7 +296,7 @@ reset_drone :-
     assertz(current_location('Colombo')),
     assertz(battery_level(Max)).
 
-% Start a new session (also forgets earlier deliveries).
+
 init_drone :-
     retractall(delivered(_)),
     reset_drone.
@@ -297,16 +305,22 @@ available_location(Loc, Weight) :-
     delivery_point(Loc, Weight),
     \+ delivered(Loc).
 
+
+
+
+
 %------------ Delivery menu ------------
+
 
 go :-
     init_drone,
     menu_loop.
 
 menu_loop :-
-    nl, write('=============================================='), nl,
+    nl, write('************************************************'), nl,
     write('        DRONE RELIEF DELIVERY - MAIN MENU'), nl,
-    write('=============================================='), nl,
+    write('************************************************'), nl,
+    write('----------------------------------------------'), nl,
     current_location(Loc), battery_level(Bat),
     format('Current Location: ~w   |   Battery Remaining: ~w%~n', [Loc, Bat]),
     write('----------------------------------------------'), nl,
@@ -336,6 +350,10 @@ handle_choice(9) :- !, nl, write('Exiting Drone Relief Delivery System. Safe tra
 handle_choice(end_of_file) :- !, nl, write('Exiting Drone Relief Delivery System.'), nl.
 handle_choice(_) :- nl, write('Invalid option, please try again.'), nl, menu_loop.
 
+
+
+
+
 %------------ Option 6: Multi-target tour ------------
 
 plan_tour_menu :-
@@ -356,17 +374,15 @@ plan_tour_menu :-
         )
     ).
 
-% Read comma-separated targets.
+
+
 read_targets(Targets) :-
     safe_read(Term, Vars),
     resolve_tuple(Term, Vars, Resolved),
     tuple_to_list(Resolved, Targets0),
     maplist(canonical_location, Targets0, Targets).
 
-% Resolve unquoted names anywhere inside a comma-separated tuple.
-% var/1 must be checked before trying to match (A,B): unifying an
-% unbound variable against that pattern would silently succeed by
-% binding it into a fresh (_,_) structure, recursing forever.
+
 resolve_tuple(Term, Vars, Resolved) :-
     (   var(Term)
     ->  resolve_var(Term, Vars, Resolved)
@@ -385,7 +401,6 @@ tuple_to_list(A, List) :-
     ;   List = [A]
     ).
 
-% Check the requested targets. Prints the reason and fails when invalid.
 validate_targets([], _) :-
     !, nl, write('No valid targets specified.'), nl, fail.
 validate_targets(Raw, Targets) :-
@@ -413,7 +428,7 @@ tour_weight(Targets, Total) :-
     findall(W, ( member(T, Targets), delivery_point(T, W) ), Ws),
     sum_list(Ws, Total).
 
-% Compare the algorithms, then offer the cheapest tour for execution.
+
 run_tour(Start, Targets, Bat) :-
     show_tour_comparison(Start, Targets, Bat),
     (   show_best_tour(Start, Targets, Bat, BestOrder, BestPath, Pct)
@@ -428,7 +443,7 @@ run_tour(Start, Targets, Bat) :-
     ;   write('No valid tour found (roads may be blocked).'), nl
     ).
 
-% Table: DFS, BFS and A* on the targets in the order entered.
+
 show_tour_comparison(Start, Targets, Bat) :-
     nl, write('--- Comparing Algorithms for the Tour (order as entered) ---'), nl,
     format('Visit order: ~w, then return to ~w~n', [Targets, Start]),
@@ -436,7 +451,7 @@ show_tour_comparison(Start, Targets, Bat) :-
     report_tour(bfs, Start, Targets, Bat),
     report_tour(astar, Start, Targets, Bat).
 
-% Cheapest visiting order (A* legs). Prints the plan and the battery check.
+
 show_best_tour(Start, Targets, Bat, BestOrder, BestPath, Pct) :-
     nl, write('--- Best Visiting Order (A* legs, all orders tried) ---'), nl,
     best_tour_order(Start, Targets, BestOrder, BestPath, BestCost),
@@ -455,7 +470,6 @@ show_best_tour(Start, Targets, Bat, BestOrder, BestPath, Pct) :-
         write('Try fewer targets, or reset the drone (option 7).'), nl
     ).
 
-% One line of the comparison table.
 report_tour(Algo, Start, Targets, Bat) :-
     (   plan_tour(Start, Targets, Algo, Path, Cost)
     ->  battery_percent(Cost, Pct),
@@ -466,8 +480,6 @@ report_tour(Algo, Start, Targets, Bat) :-
     ;   format('~w~t~7| No valid tour found.~n', [Algo])
     ).
 
-% Fly the tour: use battery and mark every target as served.
-% The drone returns to the base, so current_location does not change.
 execute_tour(Start, Order, Path, Pct) :-
     battery_level(Bat),
     NewBat is Bat - Pct,
@@ -480,7 +492,13 @@ execute_tour(Start, Order, Path, Pct) :-
     format('Delivered ~wkg of supplies to ~w and returned to ~w.~n', [Weight, Order, Start]),
     format('Battery Used: ~w%   |   Battery Remaining: ~w%~n', [Pct, NewBat]).
 
+
+
+
+
+
 %------------ Option 8: compare the three algorithms ------------
+
 
 compare_menu :-
     nl, write('--- Algorithm Comparison ---'), nl,
@@ -498,7 +516,7 @@ write_known_locations :-
     sort(All, Sorted),
     write(Sorted).
 
-% Shows every DFS path, then one line per algorithm (path, cost, search effort).
+
 compare_algorithms(Start, Goal) :-
     nl, format('--- DFS, BFS and A* : ~w to ~w ---~n', [Start, Goal]),
     findall(C-P, dfs(Start, Goal, P, C), AllPaths),
@@ -538,32 +556,14 @@ summarise_comparison(Results) :-
     format('Lowest energy cost (~w) : ~w~n', [MinC, CheapAlgos]),
     format('Fewest roads used (~w)  : ~w~n', [MinL, ShortAlgos]).
 
-%------------ Heuristic check (admissibility) ------------
-% An A* heuristic must never be larger than the real cheapest cost.
-% This ignores blocked roads (blocking can only make real costs bigger).
 
-check_heuristics :-
-    nl, write('--- Checking A* heuristic values ---'), nl,
-    findall(N-G-V-Real,
-            ( h(N, G, V),
-              aggregate_all(min(C), raw_path_cost(N, G, [N], C), Real),
-              V > Real ),
-            Bad),
-    aggregate_all(count, h(_, _, _), Total),
-    (   Bad == []
-    ->  format('All ~w heuristic values are admissible (never overestimate).~n', [Total])
-    ;   forall(member(N-G-V-Real, Bad),
-               format('TOO HIGH: h(~w, ~w) = ~w but real cost is ~w~n', [N, G, V, Real]))
-    ).
 
-raw_path_cost(G, G, _, 0).
-raw_path_cost(N, G, Seen, Cost) :-
-    (   edge(N, X, Step) ; edge(X, N, Step) ),
-    \+ memberchk(X, Seen),
-    raw_path_cost(X, G, [X|Seen], Rest),
-    Cost is Step + Rest.
+
+
+
 
 %------------ Block or unblock a road ------------
+
 
 block_road :-
     nl, write('Enter Road to Block (example: Ratnapura. Kandy.): '),
@@ -601,9 +601,14 @@ show_blocked :-
 
 list_blocked :- forall(blocked(A,B),(write(A-B), nl)).
 
+
+
+
+
 %------------ Options 1 and 2: single deliveries ------------
 
-% Shared summary block: round-trip distance/cost, outbound route, weight.
+
+
 show_location_summary(Current, Loc, Weight) :-
     (   astar(Current, Loc, OutPath, OutCost),
         astar(Loc, Current, ReturnPath, ReturnCost)
@@ -681,8 +686,8 @@ review_and_confirm(Current, Target, OutPath, OutCost, ReturnPath, ReturnCost, We
         format('Insufficient battery for this round trip. Required: ~w%, Available: ~w%~n', [Pct, Bat])
     ).
 
-% Ask a yes/no question. Capital letters (Yes. / No.) are accepted, and an
-% unbound variable can no longer count as "yes".
+
+
 ask_confirmation(Prompt) :-
     write(Prompt),
     read_answer(Answer),
@@ -693,6 +698,7 @@ ask_confirmation(Prompt) :-
     ;   write('Please answer yes. or no.'), nl,
         ask_confirmation(Prompt)
     ).
+
 
 execute_delivery(Current, Target, Path, Pct, Weight) :-
     battery_level(Bat),
