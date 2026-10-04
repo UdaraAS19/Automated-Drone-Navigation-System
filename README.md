@@ -39,6 +39,9 @@ The drone starts at a **base in Colombo** and delivers packages to six relief ca
 
 ### The map
 
+<img width="2816" height="1536" alt="SriLanka_Drone_Delivery_Network" src="https://github.com/user-attachments/assets/18a19a06-6774-424f-9536-3aa128069230" />
+
+
 **Base:** Colombo  |  **Locations:** Colombo, Kandy, Badulla, Ratnapura, Galle, Hambantota, Polonnaruwa
 
 | Delivery point | Package weight |
@@ -262,4 +265,3 @@ Fewest roads used (2)  : [bfs,astar]
 
 - **Course:** COU4303 – Artificial Intelligence, BSc (IT)
 - **Group:** 45
-- **Submission file:** `COU4303_Group45.pl` (submitted by the group leader through the LMS)
